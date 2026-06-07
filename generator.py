@@ -35,5 +35,72 @@ def generate_response(query, retrieved_chunks):
             "Try rephrasing your question — or check that your ingestion pipeline is working."
         )
 
-    # Your implementation here.
-    return "⚙️ Response generation not yet implemented. Complete Milestone 3 to activate answers."
+    # Optional: filter weak matches. Lower distance means stronger match.
+    relevant_chunks = [
+        chunk for chunk in retrieved_chunks
+        if chunk.get("distance", 1.0) <= 0.65
+    ]
+
+    if not relevant_chunks:
+        return (
+            "I couldn't find a reliable answer in the loaded rule books. "
+            "The retrieved passages were not relevant enough to answer confidently."
+        )
+
+    # Format retrieved chunks into context
+    context = "RULE EXCERPTS:\n"
+    for i, chunk in enumerate(relevant_chunks, start=1):
+        context += (
+            f"\n--- Excerpt {i} ---\n"
+            f"Game: {chunk['game']}\n"
+            f"Similarity distance: {chunk['distance']:.3f}\n"
+            f"Rule text:\n{chunk['text']}\n"
+        )
+
+    # Build the system and user messages
+    system_message = """You are RulesBot, a board game rules assistant.
+
+You must answer using ONLY the rule excerpts provided by the user.
+
+Rules:
+1. Do not use outside knowledge.
+2. Do not guess.
+3. If the answer is not clearly present in the excerpts, say: "I don't see this in the loaded rules."
+4. Always mention which game the answer comes from.
+5. Keep the answer clear and concise.
+6. If the question asks about one game but the retrieved excerpts are from a different game, say the loaded rules do not provide an answer for the requested game."""
+
+    user_message = (
+        f"{context}\n\n"
+        f"QUESTION:\n{query}\n\n"
+        "Answer using only the rule excerpts above."
+    )
+    
+    try:
+        completion = _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.2,
+            max_tokens=500,
+        )
+
+        return completion.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"Sorry, I ran into an error while generating the response: {e}"
+
+    # Call Groq API
+    completion = _client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
+        ],
+        temperature=0.2,
+        max_tokens=500,
+    )
+
+    return completion.choices[0].message.content.strip()

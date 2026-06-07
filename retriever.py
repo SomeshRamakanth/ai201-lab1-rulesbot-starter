@@ -68,5 +68,26 @@ def retrieve(query, n_results=N_RESULTS):
     if _collection.count() == 0:
         return []
 
-    # Your implementation here.
-    return []
+    if not query or not query.strip():
+        return []
+
+    results = _collection.query(
+        query_texts=[query],
+        n_results=n_results,
+        include=["documents", "metadatas", "distances"],
+    )
+
+    documents = results["documents"][0]
+    metadatas = results["metadatas"][0]
+    distances = results["distances"][0]
+
+    retrieved_chunks = []
+
+    for text, metadata, distance in zip(documents, metadatas, distances):
+        retrieved_chunks.append({
+            "text": text,
+            "game": metadata.get("game", "Unknown"),
+            "distance": float(distance),
+        })
+
+    return retrieved_chunks
